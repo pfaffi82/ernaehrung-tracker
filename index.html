@@ -297,7 +297,6 @@ td{padding:9px 8px;border-bottom:1px solid #f5f0ea;color:var(--text)}
 
   <!-- ── EINSTELLUNGEN ── -->
   <div id="tab-einstellungen" class="tab-content">
-
     <div class="card">
       <div class="card-title">⚙️ Kalorienziel</div>
       <div style="background:var(--gl);border-radius:12px;padding:14px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
@@ -322,22 +321,42 @@ td{padding:9px 8px;border-bottom:1px solid #f5f0ea;color:var(--text)}
       </div>
       <div style="margin-top:8px;font-size:13px;color:var(--g);font-weight:700;text-align:center" id="ziel-msg"></div>
     </div>
-
     <div class="card">
       <div class="card-title">📋 Planmengen-Vorschau</div>
       <p style="font-size:12px;color:#aaa;margin-bottom:12px">Automatisch skaliert auf dein Kalorienziel:</p>
       <div id="planmengen-preview"></div>
     </div>
-
   </div>
+
+  <!-- ── LEBENSMITTEL ── -->
+  <div id="tab-lm" class="tab-content">
+    <div class="card" style="padding:14px 16px">
+      <div style="font-size:12px;color:#aaa;margin-bottom:4px">Alle Mengen skaliert auf</div>
+      <div style="font-size:18px;font-weight:800;color:var(--gd)" id="lm-ziel-anzeige">2150 kcal</div>
+      <div style="font-size:12px;color:#aaa;margin-top:2px">→ Ziel im ⚙️ Tab ändern</div>
+    </div>
+    <div id="lm-liste"></div>
+  </div>
+
+  <!-- ── MENÜ ── -->
+  <div id="tab-menu" class="tab-content">
+    <div class="card" style="padding:14px 16px">
+      <div style="font-size:13px;color:#666;line-height:1.5">Menüvorschläge aus deinem Ernährungsplan – je Mahlzeit eine fertige Kombination. Tippe auf 🔀 für einen neuen Vorschlag.</div>
+    </div>
+    <div id="menu-liste"></div>
+  </div>
+
 </div>
 
 <!-- BOTTOM TAB BAR -->
 <div class="tab-bar">
   <button class="tb active" id="tbtn-heute" onclick="switchTab('heute',this)"><span class="ti">📅</span>Heute</button>
   <button class="tb" id="tbtn-koerper" onclick="switchTab('koerper',this)"><span class="ti">⚖️</span>Körper</button>
+  <button class="tb" id="tbtn-lm" onclick="switchTab('lm',this)"><span class="ti">📋</span>Lebensmittel</button>
+  <button class="tb" id="tbtn-menu" onclick="switchTab('menu',this)"><span class="ti">🍽️</span>Menü</button>
   <button class="tb" id="tbtn-verlauf" onclick="switchTab('verlauf',this)"><span class="ti">📊</span>Verlauf</button>
-  <button class="tb" id="tbtn-export" onclick="switchTab('export',this)"><span class="ti">📤</span>Export</button>
+  <button class="tb" id="tbtn-einstellungen" onclick="switchTab('einstellungen',this)"><span class="ti">⚙️</span>Ziel</button>
+</div>
   <button class="tb" id="tbtn-einstellungen" onclick="switchTab('einstellungen',this)"><span class="ti">⚙️</span>Ziel</button>
 </div>
 
@@ -490,6 +509,8 @@ function switchTab(tab,btn){
   if(tab==="export") renderExport();
   if(tab==="koerper") renderKoerper();
   if(tab==="einstellungen") renderZielTab();
+  if(tab==="lm") renderLM();
+  if(tab==="menu") renderMenu();
   window.scrollTo(0,0);
 }
 
@@ -815,6 +836,9 @@ function exportCSV(){
 // ── ZIEL ──────────────────────────────────────────────────────────────────────
 function setZiel(k){
   ZIEL=k;saveZ();renderZielTab();renderHeute();updateHeader();
+  // Refresh LM and Menu if visible
+  if(document.getElementById("tab-lm").classList.contains("active")) renderLM();
+  if(document.getElementById("tab-menu").classList.contains("active")) renderMenu();
 }
 function setZielManual(){
   const v=parseInt(document.getElementById("ziel-input").value)||0;
@@ -838,6 +862,161 @@ function renderZielTab(){
       <span style="color:var(--text);font-weight:500">${item.name}</span>
       <div style="text-align:right"><div style="font-weight:700;color:var(--gd);font-size:15px">${sk}${item.unit}${dt}</div>
       <div style="font-size:11px;color:#bbb">${skk} kcal</div></div></div>`;}).join("");
+}
+
+// ── LEBENSMITTEL TAB ──────────────────────────────────────────────────────────
+// Zuordnung Lebensmittel → Mahlzeiten
+const LM_MAHLZEITEN = {
+  "Frühstück": [
+    "Haferflocken","Dinkelflocken","Topfen mager","Joghurt natur","Whey Protein",
+    "Mandelmilch","Reismilch","Soja Drink","Milch 1,5%","Beeren","Banane","Apfel",
+    "Mandelmus","Cashew Mus","Erdnussmus","Mandeln","Kokosflocken","Vollkornreiswaffel",
+    "Amaranth gepufft","Hüttenkäse"
+  ],
+  "Vormittag": [
+    "Apfel","Beeren","Kiwi","Früchte roh","Vollkornreiswaffel","Knäckebrot",
+    "Nüsse / Samen","Joghurt natur","Hüttenkäse","Topfen mager"
+  ],
+  "Mittagessen": [
+    "Hühnerbrust","Putenbrust","Rinderhack","Lachs wild roh","Fisch Forelle",
+    "Tofu","Seitan","Hühnerei","Bresola","Hinterschinken",
+    "Reis parboiled trocken","Kartoffel roh","Süßkartoffel roh",
+    "Teigwaren VK trocken","Couscous roh","Quinoa roh",
+    "Gemüse roh","Blattsalat","Olivenöl","Avocado"
+  ],
+  "Nachmittag": [
+    "Früchte roh","Beeren","Joghurt natur","Hüttenkäse","Brot (allg.)",
+    "Hühnerei","Nüsse / Samen","Vollkornreiswaffel"
+  ],
+  "Abendessen": [
+    "Hühnerbrust","Putenbrust","Fisch Forelle","Lachs wild roh","Hühnerei",
+    "Tofu","Seitan","Hinterschinken","Bresola","Topfen mager","Hartkäse",
+    "Süßkartoffel roh","Kartoffel roh","Teigwaren VK trocken","Quinoa roh",
+    "Vollkornbrot","Gemüse roh","Blattsalat","Olivenöl"
+  ],
+  "Sport": [
+    "Banane","Beeren","Whey Protein","Reismilch","Soja Drink","Mandelmilch",
+    "Topfen mager","Joghurt natur"
+  ]
+};
+
+function renderLM(){
+  document.getElementById("lm-ziel-anzeige").textContent = ZIEL+" kcal";
+  const wrap = document.getElementById("lm-liste");
+  wrap.innerHTML = Object.entries(LM_MAHLZEITEN).map(([mz, items])=>{
+    const icon = {"Frühstück":"☀️","Vormittag":"🍎","Mittagessen":"🍽️","Nachmittag":"🥗","Abendessen":"🌙","Sport":"💪"}[mz];
+    const rows = items.map(name=>{
+      const item = DB.find(d=>d.name===name); if(!item) return "";
+      const sk = skalEmp(item.emp);
+      const skk = Math.round(item.kcal*sk/100);
+      return `<tr>
+        <td style="padding:9px 8px;border-bottom:1px solid #f5f0ea;color:var(--text);font-size:13px">${item.name}</td>
+        <td style="padding:9px 8px;border-bottom:1px solid #f5f0ea;font-weight:700;color:var(--gd);font-size:14px;text-align:right">${sk} ${item.unit}</td>
+        <td style="padding:9px 8px;border-bottom:1px solid #f5f0ea;font-weight:600;color:var(--g);font-size:13px;text-align:right">${skk} kcal</td>
+      </tr>`;
+    }).join("");
+    return `<div class="card">
+      <div class="card-title">${icon} ${mz}</div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="padding:7px 8px;text-align:left;color:#bbb;font-size:11px;font-weight:700;background:var(--bg)">Lebensmittel</th>
+          <th style="padding:7px 8px;text-align:right;color:#bbb;font-size:11px;font-weight:700;background:var(--bg)">Menge</th>
+          <th style="padding:7px 8px;text-align:right;color:#bbb;font-size:11px;font-weight:700;background:var(--bg)">kcal</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }).join("");
+}
+
+// ── MENÜ VORSCHLÄGE ───────────────────────────────────────────────────────────
+// Feste Menü-Kombinationen pro Mahlzeit
+const MENUE_DATEN = {
+  "Frühstück": [
+    { name:"Haferflocken Bowl", zutaten:["Haferflocken","Topfen mager","Beeren","Mandelmilch","Mandelmus"] },
+    { name:"Protein Frühstück", zutaten:["Dinkelflocken","Whey Protein","Joghurt natur","Banane","Kokosflocken"] },
+    { name:"Smoothie Bowl", zutaten:["Haferflocken","Beeren","Banane","Reismilch","Cashew Mus","Amaranth gepufft"] },
+    { name:"Käse-Brot", zutaten:["Vollkornreiswaffel","Hüttenkäse","Apfel","Joghurt natur"] },
+  ],
+  "Vormittag": [
+    { name:"Obst & Nüsse", zutaten:["Apfel","Beeren","Nüsse / Samen"] },
+    { name:"Joghurt & Früchte", zutaten:["Joghurt natur","Kiwi","Früchte roh"] },
+    { name:"Knäckebrot & Käse", zutaten:["Knäckebrot","Hüttenkäse","Apfel"] },
+  ],
+  "Mittagessen": [
+    { name:"Hühnerbrust & Reis", zutaten:["Hühnerbrust","Reis parboiled trocken","Gemüse roh","Blattsalat","Olivenöl"] },
+    { name:"Lachs & Süßkartoffel", zutaten:["Lachs wild roh","Süßkartoffel roh","Gemüse roh","Olivenöl"] },
+    { name:"Tofu & Quinoa", zutaten:["Tofu","Quinoa roh","Gemüse roh","Blattsalat","Avocado"] },
+    { name:"Rind & Kartoffel", zutaten:["Rinderhack","Kartoffel roh","Gemüse roh","Blattsalat","Olivenöl"] },
+    { name:"Forelle & Couscous", zutaten:["Fisch Forelle","Couscous roh","Gemüse roh","Olivenöl"] },
+    { name:"Hühnerei & Pasta", zutaten:["Hühnerei","Teigwaren VK trocken","Gemüse roh","Blattsalat","Olivenöl"] },
+  ],
+  "Nachmittag": [
+    { name:"Joghurt & Brot", zutaten:["Joghurt natur","Hüttenkäse","Früchte roh","Brot (allg.)"] },
+    { name:"Ei & Brot", zutaten:["Hühnerei","Brot (allg.)","Beeren"] },
+    { name:"Obst & Reiswaffel", zutaten:["Früchte roh","Vollkornreiswaffel","Nüsse / Samen"] },
+  ],
+  "Abendessen": [
+    { name:"Putenbrust & Gemüse", zutaten:["Putenbrust","Süßkartoffel roh","Gemüse roh","Blattsalat","Olivenöl"] },
+    { name:"Fisch & Vollkornbrot", zutaten:["Fisch Forelle","Vollkornbrot","Gemüse roh","Blattsalat"] },
+    { name:"Tofu & Gemüse", zutaten:["Tofu","Teigwaren VK trocken","Gemüse roh","Olivenöl"] },
+    { name:"Hühnerei & Salat", zutaten:["Hühnerei","Blattsalat","Gemüse roh","Vollkornbrot","Avocado"] },
+    { name:"Lachs & Quinoa", zutaten:["Lachs wild roh","Quinoa roh","Gemüse roh","Blattsalat"] },
+  ],
+  "Sport": [
+    { name:"Pre-Workout", zutaten:["Banane","Reismilch"] },
+    { name:"Post-Workout Shake", zutaten:["Whey Protein","Mandelmilch","Beeren","Topfen mager"] },
+    { name:"Recovery Bowl", zutaten:["Joghurt natur","Beeren","Whey Protein","Banane"] },
+  ]
+};
+
+// Aktuell ausgewählte Menü-Indizes pro Mahlzeit
+let menuIdx = {};
+
+function renderMenu(){
+  const wrap = document.getElementById("menu-liste");
+  wrap.innerHTML = Object.entries(MENUE_DATEN).map(([mz, optionen])=>{
+    const icon = {"Frühstück":"☀️","Vormittag":"🍎","Mittagessen":"🍽️","Nachmittag":"🥗","Abendessen":"🌙","Sport":"💪"}[mz];
+    if(!(mz in menuIdx)) menuIdx[mz]=0;
+    const idx = menuIdx[mz] % optionen.length;
+    const menu = optionen[idx];
+    const zutaten = menu.zutaten.map(name=>{
+      const item = DB.find(d=>d.name===name); if(!item) return "";
+      const sk=skalEmp(item.emp), skk=Math.round(item.kcal*sk/100);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f0ea">
+        <span style="font-size:13px;color:var(--text)">${item.name}</span>
+        <div style="text-align:right">
+          <span style="font-weight:700;color:var(--gd);font-size:14px">${sk} ${item.unit}</span>
+          <span style="color:#bbb;font-size:12px;margin-left:8px">${skk} kcal</span>
+        </div>
+      </div>`;
+    }).join("");
+
+    // Gesamtkalorien berechnen
+    const totalKcal = menu.zutaten.reduce((sum,name)=>{
+      const item=DB.find(d=>d.name===name); if(!item) return sum;
+      return sum+Math.round(item.kcal*skalEmp(item.emp)/100);
+    },0);
+
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+        <div>
+          <div style="font-size:11px;color:#bbb;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">${icon} ${mz}</div>
+          <div style="font-size:16px;font-weight:800;color:var(--gd)">${menu.name}</div>
+          <div style="font-size:12px;color:var(--g);font-weight:600;margin-top:2px">≈ ${totalKcal} kcal gesamt</div>
+        </div>
+        <button onclick="nextMenu('${mz}')"
+          style="background:var(--gl);border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-size:18px;color:var(--gd)">🔀</button>
+      </div>
+      ${zutaten}
+      <div style="font-size:11px;color:#bbb;margin-top:8px;text-align:center">${idx+1} / ${optionen.length} Varianten</div>
+    </div>`;
+  }).join("");
+}
+
+function nextMenu(mz){
+  menuIdx[mz]=(menuIdx[mz]||0)+1;
+  renderMenu();
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
